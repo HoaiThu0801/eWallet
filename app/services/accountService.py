@@ -48,6 +48,7 @@ def createAccount(data):
         return account   
     except Exception as e:
         print("Can\'t create account, error: " + str(e))
+        return 404
     finally:
         if conn is not None:
             cur.close()
@@ -76,6 +77,7 @@ def updateAccount(token, data, accountId):
         return 'OK'
     except Exception as e:
         print("Can\'t get account, error: " + str(e))
+        return 404
     finally:
         if conn is not None:
             cur.close()
@@ -117,6 +119,7 @@ def getOneAccount(accountId):
         }   
     except Exception as e:
         print("Can\'t get account, error: " + str(e))
+        return 404
     finally:
         if conn is not None:
             cur.close()
@@ -127,6 +130,6 @@ def checkBalance(accountId, amount):
 def getToken(accountId):
     account = getOneAccount(accountId)
     if (account == ()):
-        return BadRequestHandler()
+        return 404
     return encodeIdToken(accountId)
 

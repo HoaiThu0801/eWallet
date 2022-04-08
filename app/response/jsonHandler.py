@@ -5,10 +5,9 @@ class JsonHandler(RequestHandler):
     def __init__(self):
         super().__init__()
         self.contentType = 'application/json'
-
-    def jsonParse(self, json_file):
+    def jsonParse(self, data):
         try:
-            self.contents = json.dumps(json_file)
+            self.contents = json.dumps(data)
             self.setStatus(200)
             return True
         except:

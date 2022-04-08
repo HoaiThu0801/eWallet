@@ -50,6 +50,7 @@ def createMerchant(data):
         }
     except Exception as e:
         print("Can\'t create merchant, error: " + str(e))
+        return 404
     finally:
         if conn is not None:
             cur.close()
@@ -69,6 +70,7 @@ def getOneMerchant(merchantId):
         }   
     except Exception as e:
         print("Can\'t get account, error: " + str(e))
+        return 404
     finally:
         if conn is not None:
             cur.close()
@@ -88,6 +90,7 @@ def getAllKeyMerchant():
         return merchants
     except Exception as e:
         print("Can\'t create account, error: " + str(e))
+        return 404
     finally:
         if conn is not None:
             cur.close()

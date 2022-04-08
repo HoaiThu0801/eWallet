@@ -3,6 +3,7 @@ import os
 
 from http.server import BaseHTTPRequestHandler
 import re
+from app.response.unauthorizedRequestHandler import UnauthorizedRequestHandler
 
 
 from app.routes.main import routes
@@ -16,7 +17,6 @@ class MyServer(BaseHTTPRequestHandler):
 
     def do_GET(self):
         token = str(self.headers['Authorization'])
-        print(token)
         param = None
         for i in self.path.split('/'):
             if (isValidUUID(i)):
@@ -25,8 +25,14 @@ class MyServer(BaseHTTPRequestHandler):
             if self.path in routes:
                 temp = routes[self.path]
                 temp.method = 'GET'
-                handler = JsonHandler()
-                handler.jsonParse(temp.operation(token,'', '', ''))
+                data = temp.operation(token,'', '', '')
+                if data == 404:
+                    handler = BadRequestHandler()
+                elif data == 401:
+                    handler = UnauthorizedRequestHandler()
+                else:
+                    handler = JsonHandler()
+                    handler.jsonParse(data)
             else:
                 handler = BadRequestHandler()
         elif (param != None):
@@ -37,10 +43,18 @@ class MyServer(BaseHTTPRequestHandler):
             if self.path in tempRoutes:
                 temp = tempRoutes[self.path]
                 temp.method = 'GET'
-                handler = JsonHandler()
-                handler.jsonParse(temp.operation(token,'', param, ''))
+                data = temp.operation(token,'', param, '')
+                if data == 404:
+                    handler = BadRequestHandler()
+                elif data == 401:
+                    handler = UnauthorizedRequestHandler()
+                else:
+                    handler = JsonHandler()
+                    handler.jsonParse(data)
+
         else:
             handler = BadRequestHandler()
+
         self.respond({
             'handler': handler
         })
@@ -62,8 +76,14 @@ class MyServer(BaseHTTPRequestHandler):
             if self.path in routes:
                 temp = routes[self.path]
                 temp.method = 'POST'
-                handler = JsonHandler()
-                handler.jsonParse(temp.operation(token, post_data, '', ''))
+                data = temp.operation(token, post_data, '', '')
+                if data == 404:
+                    handler = BadRequestHandler()
+                elif data == 401:
+                    handler = UnauthorizedRequestHandler()
+                else:
+                    handler = JsonHandler()
+                    handler.jsonParse(data)
             else:
                 handler = BadRequestHandler()
         elif (param != None):
@@ -74,10 +94,16 @@ class MyServer(BaseHTTPRequestHandler):
             if self.path in tempRoutes:
                 temp = tempRoutes[self.path]
                 temp.method = 'POST'
-                handler = JsonHandler()
-                handler.jsonParse(temp.operation(token,post_data, param, ''))
+                data = temp.operation(token,post_data, param, '')
+                if data == 404:
+                    handler = BadRequestHandler()
+                elif data == 401:
+                    handler = UnauthorizedRequestHandler()
+                else:
+                    handler = JsonHandler()
+                    handler.jsonParse(data)
         else:
-            handler = BadRequestHandler()
+            handler = BadRequestHandler(data)
 
         self.respond({
             'handler': handler
@@ -85,26 +111,16 @@ class MyServer(BaseHTTPRequestHandler):
 
     def handle_http(self, handler):
         status_code = handler.getStatus()
-
         self.send_response(status_code)
-
-        if status_code is 200:
+        self.send_header('Content-type', handler.getContentType())
+        if status_code == 200:
             content = handler.getContents()
-            self.send_header('Content-type', handler.getContentType())
-        elif status_code is 401:
-            content = json.dumps({
-                "status" : 401,
-                "message": "Unauthorized"
-            })
         else:
-            content = json.dumps({
-                "status" : 404,
-                "message": "404 Not Found"
-            })
+            content = json.dumps(handler.getContents())
         self.end_headers()
-
         return content.encode()
 
     def respond(self, opts):
         response = self.handle_http(opts['handler'])
+
         self.wfile.write(response)

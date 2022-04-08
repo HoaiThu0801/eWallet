@@ -10,25 +10,26 @@ def encodeIdToken(account_id):
     :return: string
     """
     account = Account.getOneAccount(account_id)
-    print(account)
     if (account['accountType'] == 'merchant'):
         merchant = getOneMerchant(account['merchantId'])
         key = merchant['apiKey']
     else:
         key = tokenKey
+
     try:
         payload = {
             'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1, seconds=5),
             'iat': datetime.datetime.utcnow(),
             'sub': account_id
         }
-        return jwt.encode(
+        tokenencode = jwt.encode(
             payload,
             key,
             algorithm='HS256'
         )
+        return tokenencode
     except Exception as e:
-        return e
+        return 404
 
 def decodeIdToken(token):
     keyList = []
@@ -41,7 +42,7 @@ def decodeIdToken(token):
             payload = jwt.decode(token, key, algorithms=["HS256"])
             return payload['sub']
         except jwt.ExpiredSignatureError:
-            return 'Signature expired. Please get new token.'
+            return 403
         except jwt.InvalidTokenError:
             continue
-    return 'Invalid token. Please try other token again.'       
+    return 401     

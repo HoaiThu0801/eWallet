@@ -1,3 +1,4 @@
+import time
 import hashlib
 import requests
 import json
@@ -8,6 +9,7 @@ from ..response.badRequestHandler import BadRequestHandler
 from ..utils.decorator import tokenMerchantRequired, tokenPersonalRequired
 from ..services.accountService import updateBalanceAccount
 from ..services.merchantService import getOneMerchant
+from ..utils.timeOut import timeout, TimeoutError
 
 def createTransactionTable():
     conn = connection()
@@ -37,37 +39,61 @@ def createTransactionTable():
         cur.close()
 
 @tokenMerchantRequired
+@timeout(300)
 def createTransaction(token, data):
-    accountMerchant = auth.getLoggedInAccount(token)
-    if (accountMerchant == ()):
-        return BadRequestHandler()
     merchantId = str(data['merchantId'])
     extraData = str(data['extraData'])
     amount = int(data['amount'])
     payloadTransaction = {"merchantId": merchantId, "amount": amount, "extraData": extraData}
     signature = hashlib.md5(json.dumps(payloadTransaction).encode('utf-8')).hexdigest()
     transactionId = str(uuid.uuid4())
+
+    accountMerchant = auth.getLoggedInAccount(token)
+    if (accountMerchant == ()):
+        return BadRequestHandler()
+
     incomeAccount = accountMerchant['accountId']
     transactionStatus = 'initialized'
-
     conn = connection()
-    sql = f"""INSERT INTO public.transaction 
-            (transactionId, transactionStatus, incomeAccount, amount, 
-            extraData, signature, merchantId)
-            VALUES ('{transactionId}','{transactionStatus}','{incomeAccount}',{amount},
-            '{extraData}','{signature}','{merchantId}')"""
     try:
-        cur = conn.cursor()
-        cur.execute(sql)
-        conn.commit()
-        transaction = getOneTransaction(transactionId)
-        return transaction   
-    except Exception as e:
-        print("Can\'t create transaction, error: " + str(e))
-    finally:
-        if conn is not None:
-            cur.close()
-            conn.close()
+        sql = f"""INSERT INTO public.transaction 
+                (transactionId, transactionStatus, incomeAccount, amount, 
+                extraData, signature, merchantId)
+                VALUES ('{transactionId}','{transactionStatus}','{incomeAccount}',{amount},
+                '{extraData}','{signature}','{merchantId}')"""
+        try:
+            cur = conn.cursor()
+            cur.execute(sql)
+            conn.commit()
+            transaction = getOneTransaction(transactionId)
+            return transaction   
+        except Exception as e:
+            print("Can\'t create transaction, error: " + str(e))
+            return 404
+        finally:
+            if conn is not None:
+                cur.close()
+                conn.close()
+    except TimeoutError as e:
+        transactionStatus = 'expired'
+        sql = f"""INSERT INTO public.transaction 
+                (transactionId, transactionStatus, incomeAccount, amount, 
+                extraData, signature, merchantId)
+                VALUES ('{transactionId}','{transactionStatus}','{incomeAccount}',{amount},
+                '{extraData}','{signature}','{merchantId}')"""
+        try:
+            cur = conn.cursor()
+            cur.execute(sql)
+            conn.commit()
+            transaction = getOneTransaction(transactionId)
+            return transaction   
+        except Exception as e:
+            print("Can\'t create transaction, error: " + str(e))
+            return 404
+        finally:
+            if conn is not None:
+                cur.close()
+                conn.close()
 @tokenPersonalRequired
 def confirmTransaction (token, data):
     accountPersonal = auth.getLoggedInAccount(token)
@@ -159,6 +185,7 @@ def updateTransaction(data):
         return transaction  
     except Exception as e:
         print("Can\'t update transaction, error: " + str(e))
+        return 404
     finally:
         if conn is not None:
             cur.close()
@@ -184,6 +211,7 @@ def getOneTransaction(transactionId):
         }   
     except Exception as e:
         print("Can\'t get transaction, error: " + str(e))
+        return 404
     finally:
         if conn is not None:
             cur.close()
