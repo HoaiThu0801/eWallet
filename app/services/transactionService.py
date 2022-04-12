@@ -7,8 +7,8 @@ import app.services.authService as auth
 from ..utils.configDB import connection
 from ..response.badRequestHandler import BadRequestHandler
 from ..utils.decorator import tokenMerchantRequired, tokenPersonalRequired
-from ..services.accountService import updateBalanceAccount
-from ..services.merchantService import getOneMerchant
+from ..services.accountService import updateBalanceAccount, getOneAccount
+from ..services.merchantService import getOneMerchant, updateOrder
 from ..utils.timeOut import timeout, TimeoutError
 
 def createTransactionTable():
@@ -37,6 +37,7 @@ def createTransactionTable():
         print(f'Can\'t create transaction table, error: {e}')
     finally:
         cur.close()
+        conn.close()
 
 @tokenMerchantRequired
 def createTransaction(token, data):
@@ -86,6 +87,9 @@ def confirmTransaction (token, data):
                 "message" : "failed. Balance is not enough"
             }
     else:
+        transaction = getOneTransaction(str(data['transactionId']))
+        if (transaction['transactionStatus'] != 'initialized'):
+            return 404
         data['outcomeAccount'] = accountPersonal['accountId']
         data['status'] = 'confirmed'
         transactionResponse = updateTransaction(data)
@@ -109,11 +113,17 @@ def verifyTransaction (token, data):
                 "message" : "failed. Balance is not enough"
         }
     else:
-        data['status'] = 'verified'
+        transaction = getOneTransaction(str(data['transactionId']))
+        if (transaction['transactionStatus'] != 'confirmed'):
+            return 404
+        data['status'] = 'completed'
         transactionResponse = updateTransaction(data)
         if (transactionResponse):
             balance = accountPersonal['balance'] - transactionResponse['amount']
             if (updateBalanceAccount(balance, accountPersonal['accountId']) == 200):
+                accountMerchant = getOneAccount(transactionResponse['incomeAccount'])
+                balanceMerchant = accountMerchant['balance'] + transactionResponse['amount']
+                updateBalanceAccount(balanceMerchant, accountMerchant['accountId'])
                 return 'OK'
             else:
                 data['status'] = 'failed'
@@ -127,6 +137,9 @@ def verifyTransaction (token, data):
 def cancelTransaction(token, data):
     accountPersonal = auth.getLoggedInAccount(token)
     if (accountPersonal == ()):
+        return 404
+    transaction = getOneTransaction(str(data['transactionId']))
+    if (transaction['transactionStatus'] != 'confirmed'):
         return 404
     data['status'] = 'canceled'
     transactionResponse = updateTransaction(data)
@@ -158,8 +171,12 @@ def updateTransaction(data):
         conn.commit()
         transaction = getOneTransaction(transactionId)
         merchant = getOneMerchant(transaction['merchantId'])
+        dataOrder = {
+                'paymentStatus' : status
+        }
+        updateOrder(dataOrder,  transaction['extraData'])
         if (merchant == ()):
-            return BadRequestHandler()
+            return 404
         return transaction  
     except Exception as e:
         print("Can\'t update transaction, error: " + str(e))

@@ -27,6 +27,7 @@ def createAccountTable():
         print(f'Can\'t create account table, error: {e}')
     finally:
         cur.close()
+        conn.close()
 def createAccount(data):
     accountType = str(data['accountType'])
     accountId = str(uuid.uuid4())
@@ -59,10 +60,10 @@ def updateAccount(token, data, accountId):
     accountIdPersonal = str(data['accountId'])
     issuer = auth.getLoggedInAccount(token)
     if (issuer['accountId'] != accountId):
-        return UnauthorizedRequestHandler()
+        return 401
     accountPersonal = getOneAccount(accountIdPersonal)
     if (accountPersonal == ()):
-        return BadRequestHandler()
+        return 404
     balance += accountPersonal['balance']
     conn = connection()
     sql = f"""

@@ -22,6 +22,7 @@ def createMerchantTable():
         print(f'Can\'t create merchant table, error: {e}')
     finally:
         cur.close()
+        conn.close()
 def createMerchant(data):
     merchantName = str(data['merchantName'])
     merchantUrl = str(data['merchantUrl'])

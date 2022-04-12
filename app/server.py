@@ -104,7 +104,6 @@ class MyServer(BaseHTTPRequestHandler):
                     handler.jsonParse(data)
         else:
             handler = BadRequestHandler(data)
-
         self.respond({
             'handler': handler
         })

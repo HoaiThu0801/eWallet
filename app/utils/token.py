@@ -2,7 +2,7 @@ import datetime
 import jwt
 from .configKey import key as tokenKey
 import app.services.accountService as Account
-from ..services.merchantService import getOneMerchant, getAllKeyMerchant
+import app.services.merchantService as merchantService
 
 def encodeIdToken(account_id):
     """
@@ -11,7 +11,7 @@ def encodeIdToken(account_id):
     """
     account = Account.getOneAccount(account_id)
     if (account['accountType'] == 'merchant'):
-        merchant = getOneMerchant(account['merchantId'])
+        merchant = merchantService.getOneMerchant(account['merchantId'])
         key = merchant['apiKey']
     else:
         key = tokenKey
@@ -34,7 +34,7 @@ def encodeIdToken(account_id):
 def decodeIdToken(token):
     keyList = []
     keyList.append(tokenKey)
-    merchantKeys = getAllKeyMerchant()
+    merchantKeys = merchantService.getAllKeyMerchant()
     for item in merchantKeys:
        keyList.append(item['apiKey'])
     for key in keyList:
