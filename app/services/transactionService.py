@@ -16,7 +16,7 @@ def createTransactionTable():
     cur = conn.cursor()
     try:
         cur.execute("""
-             CREATE TYPE transactionStatus AS ENUM ('initialized', 'confirmed', 'verified', 'canceled', 'expired', 'failed')
+             CREATE TYPE transactionStatus AS ENUM ('initialized', 'confirmed', 'verified', 'canceled', 'expired', 'failed', 'completed')
         """)
         cur.execute("""
                 CREATE TABLE IF NOT EXISTS public.Transaction(
@@ -39,7 +39,6 @@ def createTransactionTable():
         cur.close()
 
 @tokenMerchantRequired
-@timeout(300)
 def createTransaction(token, data):
     merchantId = str(data['merchantId'])
     extraData = str(data['extraData'])
@@ -55,45 +54,24 @@ def createTransaction(token, data):
     incomeAccount = accountMerchant['accountId']
     transactionStatus = 'initialized'
     conn = connection()
+    sql = f"""INSERT INTO public.transaction 
+            (transactionId, transactionStatus, incomeAccount, amount, 
+            extraData, signature, merchantId)
+            VALUES ('{transactionId}','{transactionStatus}','{incomeAccount}',{amount},
+            '{extraData}','{signature}','{merchantId}')"""
     try:
-        sql = f"""INSERT INTO public.transaction 
-                (transactionId, transactionStatus, incomeAccount, amount, 
-                extraData, signature, merchantId)
-                VALUES ('{transactionId}','{transactionStatus}','{incomeAccount}',{amount},
-                '{extraData}','{signature}','{merchantId}')"""
-        try:
-            cur = conn.cursor()
-            cur.execute(sql)
-            conn.commit()
-            transaction = getOneTransaction(transactionId)
-            return transaction   
-        except Exception as e:
-            print("Can\'t create transaction, error: " + str(e))
-            return 404
-        finally:
-            if conn is not None:
-                cur.close()
-                conn.close()
-    except TimeoutError as e:
-        transactionStatus = 'expired'
-        sql = f"""INSERT INTO public.transaction 
-                (transactionId, transactionStatus, incomeAccount, amount, 
-                extraData, signature, merchantId)
-                VALUES ('{transactionId}','{transactionStatus}','{incomeAccount}',{amount},
-                '{extraData}','{signature}','{merchantId}')"""
-        try:
-            cur = conn.cursor()
-            cur.execute(sql)
-            conn.commit()
-            transaction = getOneTransaction(transactionId)
-            return transaction   
-        except Exception as e:
-            print("Can\'t create transaction, error: " + str(e))
-            return 404
-        finally:
-            if conn is not None:
-                cur.close()
-                conn.close()
+        cur = conn.cursor()
+        cur.execute(sql)
+        conn.commit()
+        transaction = getOneTransaction(transactionId)
+        return transaction   
+    except Exception as e:
+        print("Can\'t create transaction, error: " + str(e))
+        return 404
+    finally:
+        if conn is not None:
+            cur.close()
+            conn.close()
 @tokenPersonalRequired
 def confirmTransaction (token, data):
     accountPersonal = auth.getLoggedInAccount(token)
@@ -144,12 +122,12 @@ def verifyTransaction (token, data):
                     return {
                         "message" : "failed. Balance is not enough"
                 }
-    return BadRequestHandler()
+    return 404
 @tokenPersonalRequired
 def cancelTransaction(token, data):
     accountPersonal = auth.getLoggedInAccount(token)
     if (accountPersonal == ()):
-        return BadRequestHandler()
+        return 404
     data['status'] = 'canceled'
     transactionResponse = updateTransaction(data)
     if (transactionResponse):
@@ -211,6 +189,63 @@ def getOneTransaction(transactionId):
         }   
     except Exception as e:
         print("Can\'t get transaction, error: " + str(e))
+        return 404
+    finally:
+        if conn is not None:
+            cur.close()
+            conn.close()
+def getAllTransaction ():
+    conn = connection()
+    sql = """SELECT * FROM public.transaction"""
+    try:
+        cur = conn.cursor()
+        cur.execute(sql)
+        data = cur.fetchall()
+        transactions = []
+        for item in data:
+            transactions.append({
+                 "transactionId" : item[0],
+                "merchantId" : item[7],
+                "transactionStatus" : item[1],
+                "incomeAccount" : item[2],
+                "outcomeAccount" : item[3],
+                "amount" : item[4],
+                "extraItem" : item[5],
+                "signature" : item[6],
+            })
+        return transactions
+    except Exception as e:
+        print("Can\'t get all  transaction, error: " + str(e))
+        return 404
+    finally:
+        if conn is not None:
+            cur.close()
+            conn.close()
+def getAllNotExpiredTransaction():
+    conn = connection()
+    sql = """SELECT * FROM public.transaction  
+            where transactionStatus != 'canceled'  AND transactionStatus != 'completed' AND transactionStatus != 'expired'
+        """
+    try:
+        cur = conn.cursor()
+        cur.execute(sql)
+        data = cur.fetchall()
+        transactions = []
+        for item in data:
+            transactions.append({
+                "transactionId" : item[0],
+                "merchantId" : item[7],
+                "transactionStatus" : item[1],
+                "incomeAccount" : item[2],
+                "outcomeAccount" : item[3],
+                "amount" : item[4],
+                "extraData" : item[5],
+                "signature" : item[6],
+                "createdAt": item[8]
+            })
+        return transactions
+    except Exception as e:
+        print("Can\'t get all  transaction, error: " + str(e))
         return 404
     finally:
         if conn is not None:
